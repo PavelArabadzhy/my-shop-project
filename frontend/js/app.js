@@ -10,9 +10,9 @@ document.addEventListener('DOMContentLoaded', () => {
     updateCartBadge();
     const path = window.location.pathname;
 
-    if (path.endsWith('/') || path.includes('index.html')) loadCatalog();
-    if (path.includes('product.html')) loadProduct();
-    if (path.includes('cart.html')) loadCart();
+    if (path.endsWith('/') || path.includes('index.html') || path.endsWith('/index')) loadCatalog();
+    if (path.includes('product.html') || path.endsWith('/product')) loadProduct();
+    if (path.includes('cart.html') || path.endsWith('/cart')) loadCart();
 });
 
 /* -------- SHARED -------- */
@@ -58,7 +58,7 @@ async function loadCatalog() {
             const card = document.createElement('div');
             card.className = 'product-card';
             card.innerHTML = `
-                <a href="product.html?id=${p.id}" class="image-wrapper">
+                <a href="product?id=${p.id}" class="image-wrapper">
                     <img src="${PRODUCT_IMAGES[p.id]}" alt="${p.name}" referrerpolicy="no-referrer" />
                 </a>
                 <div class="product-info sticky-block">
@@ -126,7 +126,7 @@ async function loadCart() {
             container.innerHTML = `
                 <div class="cart-empty empty-state">
                     <p>Your cart is empty.</p>
-                    <a href="index.html" class="button button-secondary">Continue shopping</a>
+                    <a href="/" class="button button-secondary">Continue shopping</a>
                 </div>
             `;
             return;
@@ -188,7 +188,7 @@ async function loadCart() {
                     <div class="message message-success">
                         <h3>Thank you!</h3>
                         <p>Order <strong>${order.orderId}</strong> completed successfully.</p>
-                        <a href="index.html" class="button button-secondary button-inline">
+                        <a href="/" class="button button-secondary button-inline">
                     Back to shop</a>
                     </div>
                 `;
