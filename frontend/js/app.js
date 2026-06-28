@@ -1,9 +1,9 @@
 const API = 'https://my-shop-project-bsg1.onrender.com';
 
 const PRODUCT_IMAGES = {
-    p1: 'https://surf.inc/12291-large_default2x/just-be-quiet-box-tee-vintage-white.webp',
-    p2: 'https://surf.inc/11100-large_default2x/just-be-quiet-hoodie-acid-black.webp',
-    p3: 'https://surf.inc/7973-large_default2x/no-rules-cord-cap-cookie.webp',
+    p1: 'items-images/t-shirt.png',
+    p2: 'items-images/hoodie.png',
+    p3: 'items-images/cap.png',
 };
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -59,7 +59,7 @@ async function loadCatalog() {
             card.className = 'product-card';
             card.innerHTML = `
                 <a href="product?id=${p.id}" class="image-wrapper">
-                    <img src="${PRODUCT_IMAGES[p.id]}" alt="${p.name}" referrerpolicy="no-referrer" />
+                    <img src="${PRODUCT_IMAGES[p.id]}" alt="${p.name}" />
                 </a>
                 <div class="product-info sticky-block">
                     <h3>${p.name}</h3>
@@ -95,7 +95,7 @@ async function loadProduct() {
 
         container.innerHTML = `
             <div class="image-wrapper">
-                <img src="${PRODUCT_IMAGES[p.id]}" alt="${p.name}" referrerpolicy="no-referrer" />
+                <img src="${PRODUCT_IMAGES[p.id]}" alt="${p.name}" />
             </div>
             <div class="product-info sticky-block">
                 <h2>${p.name}</h2>
@@ -155,7 +155,7 @@ async function loadCart() {
             const row = document.createElement('div');
             row.className = 'cart-item';
             row.innerHTML = `
-                <img src="${PRODUCT_IMAGES[p.id]}" alt="${p.name}" referrerpolicy="no-referrer" />
+                <img src="${PRODUCT_IMAGES[p.id]}" alt="${p.name}" />
                 <div class="cart-item-details">
                     <h4>${p.name}</h4>
                     <p>Quantity: ${item.quantity} <button class="button-add-more" data-id="${p.id}">+</button></p>
