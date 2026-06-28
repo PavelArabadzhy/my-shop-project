@@ -93,6 +93,22 @@ async function loadProduct() {
         if (!res.ok) throw new Error();
         const p = await res.json();
 
+        // Push event to Data Layer
+        window.dataLayer = window.dataLayer || [];
+        window.dataLayer.push({
+            event: 'view_item',
+            ecommerce: {
+                currency: p.currency,
+                value: p.price,
+                items: [{
+                    item_id: p.id,
+                    item_name: p.name,
+                    price: p.price,
+                    quantity: 1,
+                }, ],
+            },
+        });
+
         container.innerHTML = `
             <div class="image-wrapper">
                 <img src="${PRODUCT_IMAGES[p.id]}" alt="${p.name}" />
