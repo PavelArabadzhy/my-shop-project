@@ -1,4 +1,4 @@
-const API = 'http://localhost:3000';
+const API = 'https://my-shop-project-bsg1.onrender.com';
 
 const PRODUCT_IMAGES = {
     p1: 'https://surf.inc/12291-large_default2x/just-be-quiet-box-tee-vintage-white.webp',
