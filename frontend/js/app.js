@@ -200,6 +200,27 @@ async function loadCart() {
                 if (!res.ok) throw new Error();
                 const order = await res.json();
 
+                // Push event to Data Layer
+                const purchaseItems = productsData.map((product, index) => ({
+                    item_id: product.id,
+                    item_name: product.name,
+                    price: product.price,
+                    quantity: cart[index].quantity,
+                }));
+
+                window.dataLayer = window.dataLayer || [];
+                window.dataLayer.push({
+                    event: 'purchase',
+                    ecommerce: {
+                        transaction_id: order.orderId,
+                        value: total,
+                        currency,
+                        items: purchaseItems,
+                        tax: 0,
+                        shipping: 0
+                    },
+                });
+
                 container.innerHTML = `
                     <div class="message message-success">
                         <h3>Thank you!</h3>
@@ -236,6 +257,25 @@ async function handleAddToCart(btn, productId, feedback) {
         });
 
         if (!res.ok) throw new Error();
+
+        // Push event to Data Layer
+        const productRes = await fetch(`${API}/products/${productId}`);
+        const product = await productRes.json();
+
+        window.dataLayer = window.dataLayer || [];
+        window.dataLayer.push({
+            event: 'add_to_cart',
+            ecommerce: {
+                currency: product.currency,
+                value: product.price,
+                items: [{
+                    item_id: product.id,
+                    item_name: product.name,
+                    price: product.price,
+                    quantity: 1,
+                }],
+            },
+        });
 
         btn.classList.remove('loading');
         btn.classList.add('success');
