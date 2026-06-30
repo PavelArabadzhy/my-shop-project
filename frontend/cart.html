@@ -1,16 +1,24 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <!-- Google Tag Manager -->
-    <script>(function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start':
-            new Date().getTime(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0],
-        j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
-        'https://www.googletagmanager.com/gtm.js?id='+i+dl;f.parentNode.insertBefore(j,f);
-    })(window,document,'script','dataLayer','GTM-T8MCSXS2');</script>
-    <!-- End Google Tag Manager -->
     <meta charset="UTF-8" />
     <title>MyShop — Cart</title>
+
+    <!-- 1. Consent CSS -->
+    <link rel="stylesheet" href="./css/consent.css" />
     <link rel="stylesheet" href="./css/styles.css" />
+
+    <!-- 2. Cookie Consent + Consent Mode v2 default state
+         MUST be synchronous (no defer/async) and placed BEFORE GTM -->
+    <script src="./js/consent.js"></script>
+
+    <!-- 3. Google Tag Manager — fires AFTER consent defaults are set -->
+    <script>(function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start':
+    new Date().getTime(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0],
+    j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
+    'https://www.googletagmanager.com/gtm.js?id='+i+dl;f.parentNode.insertBefore(j,f);
+    })(window,document,'script','dataLayer','GTM-T8MCSXS2');</script>
+    <!-- End Google Tag Manager -->
 </head>
 <body>
 <!-- Google Tag Manager (noscript) -->
@@ -38,9 +46,9 @@
     <div class="container">
         <strong>MyShop</strong>
         <p>Quality streetwear. Fast delivery. No compromises.</p>
+        <a href="#" data-cookie-settings class="footer-cookie-link">Cookie Settings</a>
     </div>
 </div>
-
 <script src="./js/app.js"></script>
 </body>
 </html>
