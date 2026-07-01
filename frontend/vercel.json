@@ -1,6 +1,10 @@
 {
   "rewrites": [
     {
+      "source": "/metrics/:path*",
+      "destination": "/api/metrics/:path*"
+    },
+    {
       "source": "/product",
       "destination": "/product.html"
     },
