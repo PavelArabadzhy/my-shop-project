@@ -2,7 +2,7 @@
   "rewrites": [
     {
       "source": "/assets/:path*",
-      "destination": "/api/assets/:path*"
+      "destination": "/api/proxy?path=:path*"
     },
     {
       "source": "/product",
