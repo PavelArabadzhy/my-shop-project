@@ -28,7 +28,8 @@ export const config = {
 const STAPE_ORIGIN = 'https://edge.stapesite.com';
 const STAPE_HOST   = 'edge.stapesite.com';
 // Your Vercel domain — tells Stape which site the events belong to
-const SITE_HOST    = 'www.stapesite.com';
+// Must match exactly what is configured in Stape Dashboard (without www)
+const SITE_HOST    = 'stapesite.com';
 
 export default async function handler(request) {
   const url = new URL(request.url);
