@@ -9,6 +9,10 @@
       "destination": "/api/metrics"
     },
     {
+      "source": "/td",
+      "destination": "/api/metrics"
+    },
+    {
       "source": "/product",
       "destination": "/product.html"
     },
