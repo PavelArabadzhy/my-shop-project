@@ -1,50 +1,64 @@
 /**
  * Same Origin Proxy — Vercel Node.js Serverless Function
  *
- * Works with any Vercel project (plain HTML, no Next.js required).
- * Edge runtime (export const config) only works inside Next.js — that's
- * why we use module.exports here instead.
- *
  * Proxies /assets/* → https://edge.stapesite.com/*
- * e.g. /assets/fps/gtd?id=... → https://edge.stapesite.com/fps/gtd?id=...
+ *
+ * Fixes vs previous version:
+ *  1. Uses req.url directly — avoids URLSearchParams re-encoding the Stape token
+ *  2. Filters out browser-only / hop-by-hop / HTTP2 pseudo-headers that
+ *     cause 400 Bad Request on the upstream server
  */
 
 const STAPE_ORIGIN = 'https://edge.stapesite.com';
 const STAPE_HOST   = 'edge.stapesite.com';
-// Must match the domain registered in Stape Dashboard
 const SITE_HOST    = 'stapesite.com';
+
+// Headers that must NOT be forwarded to the upstream server
+const SKIP_HEADERS = new Set([
+  // HTTP/2 pseudo-headers (not real HTTP headers)
+  ':authority', ':method', ':path', ':scheme',
+  // Hop-by-hop headers (per RFC 2616)
+  'connection', 'keep-alive', 'transfer-encoding', 'upgrade', 'proxy-connection',
+  // fetch() recalculates these
+  'host', 'content-length',
+  // Browser security headers — meaningless / harmful in server-to-server requests
+  'sec-ch-ua', 'sec-ch-ua-mobile', 'sec-ch-ua-platform',
+  'sec-fetch-dest', 'sec-fetch-mode', 'sec-fetch-site',
+  // Vercel-internal headers
+  'x-vercel-id', 'x-real-ip', 'x-vercel-deployment-url',
+  'x-vercel-forwarded-for', 'x-vercel-ip-country', 'x-vercel-ip-city',
+  // We override these manually below
+  'x-forwarded-for', 'x-from-cdn', 'cf-connecting-ip', 'x-stape-host',
+]);
 
 module.exports = async function handler(req, res) {
   try {
-    // req.query.path is the catch-all array: ['fps', 'gtd']
-    const { path: pathArr, ...queryParams } = req.query;
+    // Use req.url directly to preserve the exact original query string.
+    // URLSearchParams would re-encode the Stape auth token and break requests.
+    // req.url = '/assets/8vq26ydeexgxa.js?47g0m=CBxaP...' (Vercel sets this to the original path)
+    const sgtmRelative = (req.url || '/')
+      .replace(/^\/api\/assets/, '')
+      .replace(/^\/assets/, '') || '/';
 
-    const sgtmPath = Array.isArray(pathArr)
-      ? pathArr.join('/')
-      : (pathArr || '');
+    const targetUrl = `${STAPE_ORIGIN}${sgtmRelative}`;
 
-    // Rebuild query string from original params (excluding internal 'path' key)
-    const qs = Object.keys(queryParams).length
-      ? '?' + new URLSearchParams(queryParams).toString()
-      : '';
-
-    const targetUrl = `${STAPE_ORIGIN}/${sgtmPath}${qs}`;
-
-    // Real client IP — Vercel sets x-forwarded-for automatically
+    // Real client IP (Vercel populates x-forwarded-for automatically)
     const forwardedFor = req.headers['x-forwarded-for'] || '';
     const clientIp = forwardedFor.split(',')[0].trim() || '0.0.0.0';
 
-    const outHeaders = {
-      ...req.headers,
-      'x-forwarded-for':  clientIp,
-      'x-from-cdn':       'cf-stape',
-      'host':             STAPE_HOST,
-      'cf-connecting-ip': clientIp,
-      // Required when proxying to standard Stape subdomain (not custom)
-      'x-stape-host':     SITE_HOST,
-    };
-    // Let fetch recalculate content-length after any header changes
-    delete outHeaders['content-length'];
+    // Build clean header set — skip problematic headers, add Stape-required ones
+    const outHeaders = {};
+    for (const [key, value] of Object.entries(req.headers)) {
+      if (!SKIP_HEADERS.has(key.toLowerCase())) {
+        outHeaders[key.toLowerCase()] = value;
+      }
+    }
+    outHeaders['x-forwarded-for']  = clientIp;
+    outHeaders['x-from-cdn']       = 'cf-stape';
+    outHeaders['host']             = STAPE_HOST;
+    outHeaders['cf-connecting-ip'] = clientIp;
+    // Required when proxying to standard Stape subdomain (not custom)
+    outHeaders['x-stape-host']     = SITE_HOST;
 
     // Read body for POST / non-GET requests
     let body;
@@ -62,7 +76,7 @@ module.exports = async function handler(req, res) {
       body,
     });
 
-    // Forward all upstream response headers (skip hop-by-hop headers)
+    // Forward response headers (skip hop-by-hop)
     for (const [key, value] of upstream.headers.entries()) {
       if (!['transfer-encoding', 'connection', 'keep-alive'].includes(key.toLowerCase())) {
         res.setHeader(key, value);
