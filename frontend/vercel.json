@@ -1,10 +1,5 @@
 {
-  "trailingSlash": false,
   "rewrites": [
-    {
-      "source": "/assets/:path*",
-      "destination": "/api/proxy?path=:path*"
-    },
     {
       "source": "/product",
       "destination": "/product.html"
