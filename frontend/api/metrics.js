@@ -14,7 +14,13 @@ module.exports = async (req, res) => {
         "CF-Connecting-Ip": clientIp,
     };
 
-    const response = await fetch(TARGET_URL + req.url.replace(/^\/api\/metrics/, ""), {
+    console.log("req.url =", req.url);
+
+    const target = TARGET_URL + req.url.replace(/^\/api\/metrics/, "");
+
+    console.log("target =", target);
+
+    const response = await fetch(target, {
         method: req.method,
         headers: newHeaders,
         body: req.method === "GET" || req.method === "HEAD" ? undefined : req,
