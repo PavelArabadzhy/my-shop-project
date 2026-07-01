@@ -15,6 +15,23 @@ const STAPE_ORIGIN = 'https://edge.stapesite.com';
 const STAPE_HOST   = 'edge.stapesite.com';
 const SITE_HOST    = 'stapesite.com';
 
+// Headers that must NOT be forwarded upstream
+const SKIP_HEADERS = new Set([
+  // HTTP/2 pseudo-headers
+  ':authority', ':method', ':path', ':scheme',
+  // Hop-by-hop
+  'connection', 'keep-alive', 'transfer-encoding', 'upgrade', 'proxy-connection',
+  // Browser-only / CORS preflight
+  'sec-ch-ua', 'sec-ch-ua-mobile', 'sec-ch-ua-platform',
+  'sec-fetch-dest', 'sec-fetch-mode', 'sec-fetch-site', 'sec-fetch-user',
+  'origin',
+  // Recalculated below
+  'accept-encoding', 'content-length', 'host',
+  // Vercel-internal
+  'x-vercel-id', 'x-vercel-deployment-url', 'x-vercel-trace',
+  'x-real-ip', 'x-forwarded-host', 'x-forwarded-proto',
+]);
+
 module.exports = async (req, res) => {
   try {
     // Extract path and preserve raw query string (no re-encoding)
@@ -35,22 +52,22 @@ module.exports = async (req, res) => {
     const forwardedFor = req.headers['x-forwarded-for'] || '';
     const clientIp = forwardedFor.split(',')[0].trim() || 'unknown';
 
-    // Build forwarded headers (per Stape docs)
-    const newHeaders = {
-      ...req.headers,
+    // Build clean headers — skip all problematic browser/hop-by-hop headers
+    const newHeaders = {};
+    for (const [key, value] of Object.entries(req.headers)) {
+      if (!SKIP_HEADERS.has(key.toLowerCase())) {
+        newHeaders[key] = value;
+      }
+    }
+
+    // Stape-required headers
+    Object.assign(newHeaders, {
+      'Host':             STAPE_HOST,
       'X-Forwarded-For':  clientIp,
       'X-From-Cdn':       'cf-stape',
-      'Host':             STAPE_HOST,
       'CF-Connecting-IP': clientIp,
-      // Required when proxying to standard Stape subdomain (not custom)
       'X-Stape-Host':     SITE_HOST,
-    };
-
-    // Remove accept-encoding so upstream sends plain (uncompressed) response.
-    // Node.js fetch() auto-decompresses, so forwarding compressed bytes +
-    // content-encoding header would corrupt responses in the browser.
-    delete newHeaders['accept-encoding'];
-    delete newHeaders['content-length']; // let fetch recalculate
+    });
 
     let body;
     if (req.method !== 'GET' && req.method !== 'HEAD') {
