@@ -1,74 +1,79 @@
 /**
- * Same Origin Proxy — Vercel Edge Function
+ * Same Origin Proxy — Vercel Node.js Serverless Function
  *
- * Proxies all requests from:
- *   https://www.stapesite.com/assets/*
- * to:
- *   https://edge.stapesite.com/*
+ * Works with any Vercel project (plain HTML, no Next.js required).
+ * Edge runtime (export const config) only works inside Next.js — that's
+ * why we use module.exports here instead.
  *
- * Why Edge (not Node.js serverless):
- *   - Runs at the CDN edge, closest to the user → lowest latency
- *   - Native Request/Response streaming — no body buffering
- *   - No cold starts
- *   - Ideal for transparent pass-through proxies
- *
- * Required headers per Stape docs:
- *   X-Forwarded-For   — real client IP
- *   X-From-Cdn        — identifies the CDN (must be "cf-stape")
- *   Host              — target sGTM hostname
- *   CF-Connecting-IP  — real client IP (Cloudflare-style)
- *   X-Stape-Host      — your site's public hostname (required when
- *                       proxying to a standard Stape subdomain, not custom)
+ * Proxies /assets/* → https://edge.stapesite.com/*
+ * e.g. /assets/fps/gtd?id=... → https://edge.stapesite.com/fps/gtd?id=...
  */
-
-export const config = {
-  runtime: 'edge',
-};
 
 const STAPE_ORIGIN = 'https://edge.stapesite.com';
 const STAPE_HOST   = 'edge.stapesite.com';
-// Your Vercel domain — tells Stape which site the events belong to
-// Must match exactly what is configured in Stape Dashboard (without www)
+// Must match the domain registered in Stape Dashboard
 const SITE_HOST    = 'stapesite.com';
 
-export default async function handler(request) {
-  const url = new URL(request.url);
+module.exports = async function handler(req, res) {
+  try {
+    // req.query.path is the catch-all array: ['fps', 'gtd']
+    const { path: pathArr, ...queryParams } = req.query;
 
-  // Strip the Vercel-internal prefix (/api/assets or /assets) to get
-  // the real sGTM path, e.g. /api/assets/g/collect → /g/collect
-  const sgtmPath = url.pathname
-    .replace(/^\/api\/assets/, '')
-    .replace(/^\/assets/, '') || '/';
+    const sgtmPath = Array.isArray(pathArr)
+      ? pathArr.join('/')
+      : (pathArr || '');
 
-  const targetUrl = `${STAPE_ORIGIN}${sgtmPath}${url.search}`;
+    // Rebuild query string from original params (excluding internal 'path' key)
+    const qs = Object.keys(queryParams).length
+      ? '?' + new URLSearchParams(queryParams).toString()
+      : '';
 
-  // Real client IP (Vercel populates x-forwarded-for automatically)
-  const clientIp =
-    (request.headers.get('x-forwarded-for') || '').split(',')[0].trim() ||
-    '0.0.0.0';
+    const targetUrl = `${STAPE_ORIGIN}/${sgtmPath}${qs}`;
 
-  // Clone request headers and override what sGTM needs
-  const outHeaders = new Headers(request.headers);
-  outHeaders.set('X-Forwarded-For',  clientIp);
-  outHeaders.set('X-From-Cdn',       'cf-stape');
-  outHeaders.set('Host',             STAPE_HOST);
-  outHeaders.set('CF-Connecting-IP', clientIp);
-  // Required: tells Stape which site the hits originate from
-  outHeaders.set('X-Stape-Host',     SITE_HOST);
+    // Real client IP — Vercel sets x-forwarded-for automatically
+    const forwardedFor = req.headers['x-forwarded-for'] || '';
+    const clientIp = forwardedFor.split(',')[0].trim() || '0.0.0.0';
 
-  const upstream = await fetch(targetUrl, {
-    method:  request.method,
-    headers: outHeaders,
-    // Stream the body for POST requests (GA4 collect, etc.)
-    body: request.method !== 'GET' && request.method !== 'HEAD'
-      ? request.body
-      : undefined,
-  });
+    const outHeaders = {
+      ...req.headers,
+      'x-forwarded-for':  clientIp,
+      'x-from-cdn':       'cf-stape',
+      'host':             STAPE_HOST,
+      'cf-connecting-ip': clientIp,
+      // Required when proxying to standard Stape subdomain (not custom)
+      'x-stape-host':     SITE_HOST,
+    };
+    // Let fetch recalculate content-length after any header changes
+    delete outHeaders['content-length'];
 
-  // Stream the upstream response back — preserves binary payloads
-  // (GTM loader script, GA4 collect responses, etc.)
-  return new Response(upstream.body, {
-    status:  upstream.status,
-    headers: upstream.headers,
-  });
-}
+    // Read body for POST / non-GET requests
+    let body;
+    if (req.method !== 'GET' && req.method !== 'HEAD') {
+      body = await new Promise((resolve) => {
+        const chunks = [];
+        req.on('data', (chunk) => chunks.push(chunk));
+        req.on('end', () => resolve(Buffer.concat(chunks)));
+      });
+    }
+
+    const upstream = await fetch(targetUrl, {
+      method:  req.method,
+      headers: outHeaders,
+      body,
+    });
+
+    // Forward all upstream response headers (skip hop-by-hop headers)
+    for (const [key, value] of upstream.headers.entries()) {
+      if (!['transfer-encoding', 'connection', 'keep-alive'].includes(key.toLowerCase())) {
+        res.setHeader(key, value);
+      }
+    }
+
+    const buffer = await upstream.arrayBuffer();
+    res.status(upstream.status).send(Buffer.from(buffer));
+
+  } catch (err) {
+    console.error('[sgtm-proxy] error:', err.message);
+    res.status(502).json({ error: 'Bad Gateway', message: err.message });
+  }
+};
