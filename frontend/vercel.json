@@ -5,6 +5,10 @@
       "destination": "/api/metrics"
     },
     {
+      "source": "/a",
+      "destination": "/api/metrics"
+    },
+    {
       "source": "/product",
       "destination": "/product.html"
     },
