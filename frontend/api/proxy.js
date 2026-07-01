@@ -66,7 +66,6 @@ module.exports = async (req, res) => {
       'X-Forwarded-For':  clientIp,
       'X-From-Cdn':       'cf-stape',
       'CF-Connecting-IP': clientIp,
-      'X-Stape-Host':     SITE_HOST,
     });
 
     let body;
