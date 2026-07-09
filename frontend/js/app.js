@@ -1,10 +1,113 @@
 const API = 'https://my-shop-project-bsg1.onrender.com';
+const STARTUP_TIMEOUT = 50000; // 50 seconds for backend startup (can delay up to 50+ seconds)
+const RETRY_INTERVAL = 1000; // Retry every 1 second
 
 const PRODUCT_IMAGES = {
     p1: 'items-images/t-shirt.png',
     p2: 'items-images/hoodie.png',
     p3: 'items-images/cap.png',
 };
+
+let backendStartupOverlay = null;
+
+function createBackendStartupOverlay() {
+    const overlay = document.createElement('div');
+    overlay.id = 'backend-startup-overlay';
+    overlay.style.cssText = `
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: rgba(0, 0, 0, 0.5);
+        display: none;
+        align-items: center;
+        justify-content: center;
+        z-index: 9999;
+    `;
+    overlay.innerHTML = `
+        <div style="
+            background: white;
+            padding: 2rem;
+            border-radius: 8px;
+            text-align: center;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            max-width: 400px;
+        ">
+            <div style="
+                width: 50px;
+                height: 50px;
+                border: 4px solid #f0f0f0;
+                border-top-color: #6366f1;
+                border-radius: 50%;
+                animation: spin 1s linear infinite;
+                margin: 0 auto 1rem;
+            "></div>
+            <h2 style="margin: 0 0 0.5rem; color: #333;">Starting Backend Server</h2>
+            <p style="margin: 0; color: #666; font-size: 14px;">This may take 50 seconds or more. Please wait...</p>
+        </div>
+        <style>
+            @keyframes spin {
+                to { transform: rotate(360deg); }
+            }
+        </style>
+    `;
+    document.body.appendChild(overlay);
+    return overlay;
+}
+
+function showBackendStartup() {
+    if (!backendStartupOverlay) {
+        backendStartupOverlay = createBackendStartupOverlay();
+    }
+    backendStartupOverlay.style.display = 'flex';
+}
+
+function hideBackendStartup() {
+    if (backendStartupOverlay) {
+        backendStartupOverlay.style.display = 'none';
+    }
+}
+
+async function fetchWithStartupDetection(url, options = {}) {
+    const controller = new AbortController();
+    const startupTimer = setTimeout(() => {
+        controller.abort();
+    }, 5000); // 5 second timeout per request
+
+    try {
+        const res = await fetch(url, {
+            ...options,
+            signal: controller.signal,
+        });
+        clearTimeout(startupTimer);
+        return res;
+    } catch (error) {
+        clearTimeout(startupTimer);
+        // Network error or timeout - backend might be starting
+        if (error.name === 'AbortError' || error.message.includes('Failed to fetch')) {
+            showBackendStartup();
+            // Retry with exponential backoff for up to 15 seconds
+            const startTime = Date.now();
+            while (Date.now() - startTime < STARTUP_TIMEOUT) {
+                await new Promise(resolve => setTimeout(resolve, RETRY_INTERVAL));
+                try {
+                    const retryRes = await fetch(url, {
+                        ...options,
+                        signal: AbortSignal.timeout(5000),
+                    });
+                    hideBackendStartup();
+                    return retryRes;
+                } catch (retryError) {
+                    // Continue retrying
+                }
+            }
+            hideBackendStartup();
+            throw new Error('Backend server did not respond');
+        }
+        throw error;
+    }
+}
 
 document.addEventListener('DOMContentLoaded', () => {
     updateCartBadge();
@@ -18,7 +121,7 @@ document.addEventListener('DOMContentLoaded', () => {
 /* -------- SHARED -------- */
 async function updateCartBadge() {
     try {
-        const res = await fetch(`${API}/cart`);
+        const res = await fetchWithStartupDetection(`${API}/cart`);
         const cart = await res.json();
         const count = cart.reduce((sum, item) => sum + item.quantity, 0);
         const badge = document.getElementById('cart-count');
@@ -44,7 +147,7 @@ async function loadCatalog() {
     if (!grid) return;
 
     try {
-        const res = await fetch(`${API}/products`);
+        const res = await fetchWithStartupDetection(`${API}/products`);
         if (!res.ok) throw new Error();
         const products = await res.json();
 
@@ -89,7 +192,7 @@ async function loadProduct() {
     if (!id) return;
 
     try {
-        const res = await fetch(`${API}/products/${id}`);
+        const res = await fetchWithStartupDetection(`${API}/products/${id}`);
         if (!res.ok) throw new Error();
         const p = await res.json();
 
@@ -135,7 +238,7 @@ async function loadCart() {
     if (!container) return;
 
     try {
-        const res = await fetch(`${API}/cart`);
+        const res = await fetchWithStartupDetection(`${API}/cart`);
         const cart = await res.json();
 
         if (!cart.length) {
@@ -160,7 +263,7 @@ async function loadCart() {
         let currency = 'EUR';
 
         const productsData = await Promise.all(
-            cart.map(item => fetch(`${API}/products/${item.productId}`).then(r => r.json()))
+            cart.map(item => fetchWithStartupDetection(`${API}/products/${item.productId}`).then(r => r.json()))
         );
 
         productsData.forEach((p, index) => {
@@ -196,7 +299,7 @@ async function loadCart() {
             btn.classList.add('loading');
 
             try {
-                const res = await fetch(`${API}/orders`, { method: 'POST' });
+                const res = await fetchWithStartupDetection(`${API}/orders`, { method: 'POST' });
                 if (!res.ok) throw new Error();
                 const order = await res.json();
 
@@ -250,7 +353,7 @@ async function handleAddToCart(btn, productId, feedback) {
     btn.disabled = true;
 
     try {
-        const res = await fetch(`${API}/cart`, {
+        const res = await fetchWithStartupDetection(`${API}/cart`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ productId }),
@@ -259,7 +362,7 @@ async function handleAddToCart(btn, productId, feedback) {
         if (!res.ok) throw new Error();
 
         // Push event to Data Layer
-        const productRes = await fetch(`${API}/products/${productId}`);
+        const productRes = await fetchWithStartupDetection(`${API}/products/${productId}`);
         const product = await productRes.json();
 
         window.dataLayer = window.dataLayer || [];
