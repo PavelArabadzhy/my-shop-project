@@ -2,6 +2,11 @@ const API = 'https://my-shop-project-bsg1.onrender.com';
 const STARTUP_TIMEOUT = 50000; // 50 seconds for backend startup (can delay up to 50+ seconds)
 const RETRY_INTERVAL = 1000; // Retry every 1 second
 
+const VISITOR_ID_STORAGE_KEY = 'visitor_id';
+// Relative, same-origin path — proxied by Vercel to the backend so the
+// visitor_id Set-Cookie ends up scoped to this site's domain (see api/visitor.js).
+const VISITOR_RECOVER_ENDPOINT = '/visitor-id/recover';
+
 const PRODUCT_IMAGES = {
     p1: 'items-images/t-shirt.png',
     p2: 'items-images/hoodie.png',
@@ -110,6 +115,7 @@ async function fetchWithStartupDetection(url, options = {}) {
 }
 
 document.addEventListener('DOMContentLoaded', () => {
+    syncVisitorId();
     updateCartBadge();
     const path = window.location.pathname;
 
@@ -117,6 +123,36 @@ document.addEventListener('DOMContentLoaded', () => {
     if (path.includes('product.html') || path.endsWith('/product')) loadProduct();
     if (path.includes('cart.html') || path.endsWith('/cart')) loadCart();
 });
+
+/* -------- VISITOR ID (Stape Cookie Keeper) -------- */
+/**
+ * Ensures the backend has issued/restored the visitor_id cookie for this
+ * browser. The cookie itself is HttpOnly (set only by the backend); the
+ * frontend never touches document.cookie directly. It only remembers the
+ * id value in localStorage so that if the cookie ever gets cleared, the
+ * backend can restore the SAME visitor_id instead of minting a new one.
+ */
+async function syncVisitorId() {
+    const rememberedVisitorId = localStorage.getItem(VISITOR_ID_STORAGE_KEY);
+
+    try {
+        const res = await fetch(VISITOR_RECOVER_ENDPOINT, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'include',
+            body: JSON.stringify({ visitorId: rememberedVisitorId || undefined }),
+        });
+
+        if (!res.ok) return;
+
+        const { visitorId } = await res.json();
+        if (visitorId) {
+            localStorage.setItem(VISITOR_ID_STORAGE_KEY, visitorId);
+        }
+    } catch (e) {
+        console.error('Failed to sync visitor_id', e);
+    }
+}
 
 /* -------- SHARED -------- */
 async function updateCartBadge() {
