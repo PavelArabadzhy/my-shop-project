@@ -25,16 +25,26 @@ export class VisitorService {
   }
 
   /**
-   * Builds the Set-Cookie header value for visitor_id.
-   * `secure` should be true whenever the request is served over HTTPS
-   * (always true in production; can be false for local http development).
+   * Builds the Set-Cookie header value for visitor_id, per Stape Cookie
+   * Keeper's "User Identifier: Cookie" requirements:
+   *  - HttpOnly MUST be false (Cookie Keeper / GTM need JS-side visibility)
+   *  - Secure MUST be true (site is HTTPS-only in production)
+   *  - Domain should cover the whole site, e.g. ".stapesite.com", so the
+   *    cookie is valid across subdomains, not just the exact host
+   *  - Duration is 400 days, and the cookie must be re-issued (with a fresh
+   *    Max-Age) on every request so it never expires for active visitors
    */
-  buildVisitorCookieHeader(visitorId: string, secure: boolean): string {
+  buildVisitorCookieHeader(
+    visitorId: string,
+    secure: boolean,
+    domain?: string,
+  ): string {
     return buildSetCookieHeader(VISITOR_ID_COOKIE_NAME, visitorId, {
       path: '/',
+      domain,
       maxAgeSeconds: VISITOR_ID_COOKIE_MAX_AGE_SECONDS,
       sameSite: 'Lax',
-      httpOnly: true,
+      httpOnly: false,
       secure,
     });
   }

@@ -26,7 +26,8 @@ export class VisitorController {
    * Safari ITP expiry, etc.) using the value the frontend remembered in
    * localStorage. Excluded from VisitorMiddleware so it has full control
    * over the create-vs-restore decision:
-   *  - cookie already present                        -> return as-is
+   *  - cookie already present                        -> re-issue it (extend
+   *                                                       Max-Age), value unchanged
    *  - cookie missing + valid candidate from client   -> restore that value
    *  - cookie missing + no/invalid candidate          -> generate a new UUID
    */
@@ -40,19 +41,18 @@ export class VisitorController {
       req.headers.cookie,
     );
 
-    if (existingVisitorId) {
-      return { visitorId: existingVisitorId };
-    }
-
     const candidateVisitorId = body?.visitorId;
-    const visitorId = this.visitorService.isValidVisitorId(candidateVisitorId)
-      ? candidateVisitorId
-      : this.visitorService.generateVisitorId();
+    const visitorId =
+      existingVisitorId ??
+      (this.visitorService.isValidVisitorId(candidateVisitorId)
+        ? candidateVisitorId
+        : this.visitorService.generateVisitorId());
 
     const isProduction = process.env.NODE_ENV === 'production';
+    const cookieDomain = isProduction ? process.env.VISITOR_COOKIE_DOMAIN : undefined;
     res.setHeader(
       'Set-Cookie',
-      this.visitorService.buildVisitorCookieHeader(visitorId, isProduction),
+      this.visitorService.buildVisitorCookieHeader(visitorId, isProduction, cookieDomain),
     );
 
     return { visitorId };

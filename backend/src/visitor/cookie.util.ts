@@ -26,6 +26,7 @@ export function parseCookies(cookieHeader?: string): Record<string, string> {
 
 export interface CookieOptions {
   path?: string;
+  domain?: string;
   maxAgeSeconds?: number;
   sameSite?: 'Lax' | 'Strict' | 'None';
   httpOnly?: boolean;
@@ -40,6 +41,10 @@ export function buildSetCookieHeader(
   const attributes = [`${name}=${encodeURIComponent(value)}`];
 
   attributes.push(`Path=${options.path ?? '/'}`);
+
+  if (options.domain) {
+    attributes.push(`Domain=${options.domain}`);
+  }
 
   if (options.maxAgeSeconds !== undefined) {
     attributes.push(`Max-Age=${options.maxAgeSeconds}`);

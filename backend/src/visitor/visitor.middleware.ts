@@ -12,7 +12,10 @@ export interface RequestWithVisitorId extends Request {
  * frontend never called POST /visitor-id/recover first (e.g. direct API
  * hits, non-browser clients, race conditions on the very first page load).
  *
- * It never overwrites an existing cookie — it only creates one when missing.
+ * It never changes the VALUE of an existing cookie — it only re-issues the
+ * same value with a fresh Max-Age on every request, so the cookie keeps
+ * rolling forward and never expires for an active visitor ("just extend,
+ * it needs to be persistent", per Stape Cookie Keeper requirements).
  */
 @Injectable()
 export class VisitorMiddleware implements NestMiddleware {
@@ -24,14 +27,13 @@ export class VisitorMiddleware implements NestMiddleware {
     );
 
     const visitorId = existingVisitorId ?? this.visitorService.generateVisitorId();
+    const isProduction = process.env.NODE_ENV === 'production';
+    const cookieDomain = isProduction ? process.env.VISITOR_COOKIE_DOMAIN : undefined;
 
-    if (!existingVisitorId) {
-      const isProduction = process.env.NODE_ENV === 'production';
-      res.setHeader(
-        'Set-Cookie',
-        this.visitorService.buildVisitorCookieHeader(visitorId, isProduction),
-      );
-    }
+    res.setHeader(
+      'Set-Cookie',
+      this.visitorService.buildVisitorCookieHeader(visitorId, isProduction, cookieDomain),
+    );
 
     (req as RequestWithVisitorId).visitorId = visitorId;
     next();
