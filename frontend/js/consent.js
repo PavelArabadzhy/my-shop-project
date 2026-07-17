@@ -51,17 +51,29 @@
 
   // ─── Cookie helpers ───────────────────────────────────────────────────────
 
+  // Apex domain so the cookie is shared across all *.stapesite.com
+  // subdomains (matches the scope used for visitor_id). Left unset on
+  // localhost/preview hosts (e.g. *.vercel.app), where Domain=.stapesite.com
+  // would not match and the browser would reject the cookie entirely.
+  function getCookieDomain() {
+    return /(^|\.)stapesite\.com$/.test(location.hostname)
+      ? '.stapesite.com'
+      : '';
+  }
+
   function writeCookie(prefs) {
     var value  = encodeURIComponent(JSON.stringify(
       Object.assign({}, prefs, { v: CONSENT_VERSION })
     ));
     var maxAge = COOKIE_DAYS * 24 * 60 * 60;
     var secure = location.protocol === 'https:' ? '; Secure' : '';
+    var domain = getCookieDomain();
     document.cookie =
       COOKIE_NAME + '=' + value +
       '; Max-Age=' + maxAge +
       '; Path=/' +
       '; SameSite=Lax' +
+      (domain ? '; Domain=' + domain : '') +
       secure;
   }
 
